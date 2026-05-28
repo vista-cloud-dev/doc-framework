@@ -162,7 +162,10 @@ def slugify(text: str) -> str:
     s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", s)  # links -> their text
     out = [ch if (ch.isalnum() or ch in (" ", "-", "_")) else "" for ch in s]
     s = "".join(out).strip()
-    return re.sub(r"\s+", "-", s)
+    # GitHub maps each whitespace char to its own hyphen (no collapsing), so a
+    # heading like "5. Layer 1 — the X" slugs to "5-layer-1--the-x" (the " — "
+    # leaves two spaces once the em-dash is stripped). Do NOT collapse runs.
+    return re.sub(r"\s", "-", s)
 
 
 def extract_headings_and_links(text: str) -> tuple[list[str], list[tuple[str, int]]]:
