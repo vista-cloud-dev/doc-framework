@@ -1,0 +1,33 @@
+# Docs corpus validation gate.
+# Copy to .github/workflows/docs-validate.yml in your project.
+# Runs the framework validator on every push/PR that touches docs/.
+# Zero dependencies: the validator falls back to a built-in frontmatter parser,
+# so no `pip install` step is required. (PyYAML is used automatically if present.)
+
+name: docs-validate
+
+on:
+  push:
+    paths:
+      - "docs/**"
+      - "doc-framework/**"
+      - ".github/workflows/docs-validate.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "doc-framework/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Errors fail the build; warnings are advisory.
+      # Add --strict to also fail on warnings (e.g. uncovered index entries).
+      - name: Validate documentation corpus
+        run: python3 doc-framework/tools/validate_docs.py docs/
