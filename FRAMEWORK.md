@@ -206,9 +206,14 @@ docs/
   <component>/<topic>.md      ← …grouped into a subdirectory per component when the corpus grows
   historical/                ← superseded / deprecated docs (kept for history)
     <topic>-v1.md
+  prompts/                   ← session hand-off / kickoff docs (NOT validated)
 ```
 
 - Group into component subdirectories once a flat `docs/` exceeds ~12 files.
+- **`prompts/` is excluded from validation** (`EXCLUDE_DIRS` in `validate_docs.py`).
+  Kickoff / session-handoff docs are working notes with their own lightweight
+  frontmatter, not part of the validated corpus; the frontmatter dialect and
+  type/status enums do not apply to them.
 - **Superseded** and **deprecated** docs MUST live under `historical/` and carry a
   supersession banner ([§10](#10-status-and-supersession-lifecycle)). Never delete a
   superseded doc; git history is not a substitute for a discoverable, banner-topped
