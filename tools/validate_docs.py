@@ -27,6 +27,14 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
+# Directories excluded from the validated corpus (pruned in collect_docs). The
+# frontmatter dialect (VALID_TYPES/REQUIRED_FIELDS) models the proposal/research
+# corpus, not handoff/kickoff prompts — `prompts/` (and `archive/prompts/`) are
+# session hand-offs with their own lightweight convention, so they are not
+# validated here. Inbound links to a prompt still pass (the link checker resolves
+# targets against the filesystem, not this set).
+EXCLUDE_DIRS = {"prompts"}
+
 VALID_TYPES = {"spec", "adr", "investigation", "research", "plan", "map", "guide", "log"}
 VALID_STATUS = {"idea", "draft", "proposed", "accepted", "canonical", "superseded", "deprecated"}
 REQUIRED_FIELDS = ["id", "title", "type", "status", "created", "updated"]
@@ -215,7 +223,8 @@ def extract_headings_and_links(text: str) -> tuple[list[str], list[tuple[str, in
 # --------------------------------------------------------------------------- #
 def collect_docs(root: str) -> list[Doc]:
     docs: list[Doc] = []
-    for dirpath, _dirs, files in os.walk(root):
+    for dirpath, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]  # prune excluded dirs
         for fn in files:
             if not fn.endswith(".md"):
                 continue
