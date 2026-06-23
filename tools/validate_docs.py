@@ -206,7 +206,16 @@ def extract_headings_and_links(text: str) -> tuple[list[str], list[tuple[str, in
             continue
         hm = HEADING_RE.match(line)
         if hm:
-            base = slugify(hm.group(2))
+            htext = hm.group(2)
+            # Honor an explicit heading id `{#custom-id}` (pandoc/kramdown/mkdocs
+            # attribute syntax). When present, register that id AND the auto-slug of
+            # the remaining text, so both `#custom-id` and the GitHub-style slug resolve.
+            explicit = None
+            mid = re.search(r"\s*\{#([\w-]+)\}\s*$", htext)
+            if mid:
+                explicit = mid.group(1)
+                htext = htext[: mid.start()]
+            base = slugify(htext)
             if base in seen:
                 seen[base] += 1
                 slug = f"{base}-{seen[base]}"
@@ -214,6 +223,8 @@ def extract_headings_and_links(text: str) -> tuple[list[str], list[tuple[str, in
                 seen[base] = 0
                 slug = base
             slugs.append(slug)
+            if explicit and explicit not in slugs:
+                slugs.append(explicit)
             continue
         for m in LINK_RE.finditer(line):
             target = m.group(1).strip()
