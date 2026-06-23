@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """
-validate_docs.py — corpus validator for the Technical Documentation Framework.
+validate_docs.py — slim corpus validator for the Technical Documentation Framework.
 
-Checks frontmatter, the type/status enums, id/filename agreement, supersession
-integrity, and cross-document link + anchor integrity across a docs/ tree.
+SCOPE (slimmed 2026-06-23): the validator gates on the one thing that is always a
+real defect — **cross-reference integrity** (broken intra-repo links + broken section
+anchors). Everything else (frontmatter presence, the core fields, ISO dates) is an
+**advisory warning**, never a build failure. The former ceremony — type/status enums,
+id↔filename agreement, the supersession protocol, index coverage, tags — has been
+removed: the corpus never adopted that dialect, so those checks produced noise, not
+signal. Keep the gate meaningful (links resolve) and the hygiene advisory.
 
-Zero external dependencies: uses PyYAML if importable, otherwise a built-in
-parser for the constrained frontmatter dialect described in FRAMEWORK.md §6.
+Dialect-agnostic: the corpus uses two frontmatter dialects (framework `id/type/updated`
+and proposal `doc_type/last_modified`); this validator does not enforce either — it only
+notices the common core (title/status/created) as a warning.
+
+Zero external dependencies: uses PyYAML if importable, otherwise a built-in parser for
+the constrained frontmatter dialect described in FRAMEWORK.md §6.
 
 Usage:
     python3 validate_docs.py docs/
@@ -19,7 +28,6 @@ Exit code: 0 if clean (no errors; no warnings under --strict), 1 otherwise.
 from __future__ import annotations
 
 import argparse
-import datetime as _dt
 import json
 import os
 import re
@@ -27,18 +35,16 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
-# Directories excluded from the validated corpus (pruned in collect_docs). The
-# frontmatter dialect (VALID_TYPES/REQUIRED_FIELDS) models the proposal/research
-# corpus, not handoff/kickoff prompts — `prompts/` (and `archive/prompts/`) are
-# session hand-offs with their own lightweight convention, so they are not
-# validated here. Inbound links to a prompt still pass (the link checker resolves
+# Directories excluded from the validated corpus (pruned in collect_docs).
+# `prompts/` = session hand-offs (own lightweight convention); `archive/` = retired,
+# read-only material; `memory/` = the auto-memory store (a `name`/`description`/`metadata`
+# dialect, not framework docs); `retired/` = proposals archived in place. None are active
+# framework docs. Inbound links into any of them still resolve (the link checker resolves
 # targets against the filesystem, not this set).
-EXCLUDE_DIRS = {"prompts"}
+EXCLUDE_DIRS = {"prompts", "archive", "memory", "retired"}
 
-VALID_TYPES = {"spec", "adr", "investigation", "research", "plan", "map", "guide", "log"}
-VALID_STATUS = {"idea", "draft", "proposed", "accepted", "canonical", "superseded", "deprecated"}
-REQUIRED_FIELDS = ["id", "title", "type", "status", "created", "updated"]
-ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+# Advisory only — the common core both corpus dialects share.
+REQUIRED_FIELDS = ["title", "status", "created"]
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # markdown links: [text](target)  — not images (![...]); target may carry a "title"
 LINK_RE = re.compile(r"(?<!!)\[(?:[^\]]*)\]\(([^)]+)\)")
@@ -77,7 +83,6 @@ class Doc:
     fm_ok: bool = False
     headings: list[str] = field(default_factory=list)  # slugs
     links: list[tuple[str, int]] = field(default_factory=list)  # (target, line)
-    in_historical: bool = False
     is_index: bool = False  # README.md files are navigation, not corpus docs
 
 
@@ -150,6 +155,7 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any] | None, str | None]:
             if not isinstance(data, dict):
                 return None, "frontmatter is not a mapping"
             # normalise dates to ISO strings for uniform checks
+            import datetime as _dt
             for k, v in list(data.items()):
                 if isinstance(v, (_dt.date, _dt.datetime)):
                     data[k] = v.isoformat()[:10]
@@ -170,9 +176,7 @@ def slugify(text: str) -> str:
     s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", s)  # links -> their text
     out = [ch if (ch.isalnum() or ch in (" ", "-", "_")) else "" for ch in s]
     s = "".join(out).strip()
-    # GitHub maps each whitespace char to its own hyphen (no collapsing), so a
-    # heading like "5. Layer 1 — the X" slugs to "5-layer-1--the-x" (the " — "
-    # leaves two spaces once the em-dash is stripped). Do NOT collapse runs.
+    # GitHub maps each whitespace char to its own hyphen (no collapsing).
     return re.sub(r"\s", "-", s)
 
 
@@ -235,7 +239,6 @@ def collect_docs(root: str) -> list[Doc]:
                     path=ap,
                     relpath=rel,
                     stem=fn[:-3],
-                    in_historical="historical" in rel.split(os.sep),
                     is_index=fn.lower() == "readme.md",
                 )
             )
@@ -257,90 +260,29 @@ def validate(root: str) -> list[Finding]:
             continue  # navigation file: no frontmatter required, but links are still checked
         meta, err = parse_frontmatter(texts[d.path])
         if err:
-            findings.append(Finding("error", d.relpath, 1, "FM-PARSE", err))
+            # Advisory: the corpus contains legit no-frontmatter working notes.
+            findings.append(Finding("warning", d.relpath, 1, "FM-PARSE", err))
             d.meta = {}
         else:
             d.meta = meta
             d.fm_ok = True
 
-    # ---- per-doc field checks ----
-    id_to_doc: dict[str, Doc] = {}
+    # ---- basic frontmatter hygiene (ADVISORY — warnings only) ----
     for d in docs:
-        m = d.meta
         if not d.fm_ok:
             continue
+        m = d.meta
         for fldname in REQUIRED_FIELDS:
             if fldname not in m or m[fldname] in (None, ""):
-                findings.append(Finding("error", d.relpath, None, "FM-REQ", f"missing required field '{fldname}'"))
-
-        doc_id = m.get("id")
-        if doc_id:
-            if not ID_RE.match(str(doc_id)):
-                findings.append(Finding("error", d.relpath, None, "FM-ID", f"id '{doc_id}' is not kebab-case"))
-            if str(doc_id) != d.stem:
-                findings.append(Finding("error", d.relpath, None, "ID-STEM", f"id '{doc_id}' != filename stem '{d.stem}'"))
-            if doc_id in id_to_doc:
-                findings.append(Finding("error", d.relpath, None, "ID-DUP", f"duplicate id '{doc_id}' (also in {id_to_doc[doc_id].relpath})"))
-            else:
-                id_to_doc[doc_id] = d
-
-        t = m.get("type")
-        if t and t not in VALID_TYPES:
-            findings.append(Finding("error", d.relpath, None, "TYPE", f"invalid type '{t}' (allowed: {sorted(VALID_TYPES)})"))
-        st = m.get("status")
-        if st and st not in VALID_STATUS:
-            findings.append(Finding("error", d.relpath, None, "STATUS", f"invalid status '{st}' (allowed: {sorted(VALID_STATUS)})"))
-
-        created, updated = m.get("created"), m.get("updated")
-        cd = ud = None
-        for label, val in (("created", created), ("updated", updated)):
+                findings.append(Finding("warning", d.relpath, None, "FM-REQ", f"missing recommended field '{fldname}'"))
+        created = m.get("created")
+        updated = m.get("updated") or m.get("last_modified")
+        upd_label = "updated" if m.get("updated") else "last_modified"
+        for label, val in (("created", created), (upd_label, updated)):
             if val and not DATE_RE.match(str(val)):
-                findings.append(Finding("error", d.relpath, None, "DATE", f"{label} '{val}' is not ISO YYYY-MM-DD"))
-        try:
-            if created and DATE_RE.match(str(created)):
-                cd = _dt.date.fromisoformat(str(created))
-            if updated and DATE_RE.match(str(updated)):
-                ud = _dt.date.fromisoformat(str(updated))
-            if cd and ud and ud < cd:
-                findings.append(Finding("error", d.relpath, None, "DATE-ORDER", f"updated ({updated}) is before created ({created})"))
-        except ValueError as e:
-            findings.append(Finding("error", d.relpath, None, "DATE", f"invalid date: {e}"))
+                findings.append(Finding("warning", d.relpath, None, "DATE", f"{label} '{val}' is not ISO YYYY-MM-DD"))
 
-        if "tags" not in m:
-            findings.append(Finding("warning", d.relpath, None, "TAGS", "no tags (recommended)"))
-        elif not isinstance(m.get("tags"), list):
-            findings.append(Finding("error", d.relpath, None, "TAGS", "tags must be a flat list"))
-
-    # ---- supersession integrity ----
-    for d in docs:
-        if not d.fm_ok:
-            continue
-        m = d.meta
-        st = m.get("status")
-        sup = (m.get("supersedes") or "").strip() if isinstance(m.get("supersedes"), str) else m.get("supersedes")
-        supby = (m.get("superseded_by") or "").strip() if isinstance(m.get("superseded_by"), str) else m.get("superseded_by")
-
-        if st == "superseded" and not supby:
-            findings.append(Finding("error", d.relpath, None, "SUP-MISSING", "status 'superseded' requires 'superseded_by'"))
-        if supby:
-            other = id_to_doc.get(supby)
-            if not other:
-                findings.append(Finding("error", d.relpath, None, "SUP-REF", f"superseded_by '{supby}' does not resolve to a doc"))
-            else:
-                if (other.meta.get("supersedes") or "") != m.get("id"):
-                    findings.append(Finding("error", d.relpath, None, "SUP-BIDIR", f"'{supby}' does not declare supersedes: {m.get('id')}"))
-                if st not in ("superseded", "deprecated"):
-                    findings.append(Finding("error", d.relpath, None, "SUP-STATUS", f"has superseded_by but status is '{st}', not superseded/deprecated"))
-            if not d.in_historical:
-                findings.append(Finding("warning", d.relpath, None, "SUP-LOC", "superseded/deprecated docs should live under historical/"))
-        if sup:
-            other = id_to_doc.get(sup)
-            if not other:
-                findings.append(Finding("error", d.relpath, None, "SUP-REF", f"supersedes '{sup}' does not resolve to a doc"))
-            elif (other.meta.get("superseded_by") or "") != m.get("id"):
-                findings.append(Finding("error", d.relpath, None, "SUP-BIDIR", f"'{sup}' does not declare superseded_by: {m.get('id')}"))
-
-    # ---- link + anchor integrity ----
+    # ---- link + anchor integrity (THE GATE — the only errors) ----
     headings_by_path = {d.path: set(d.headings) for d in docs}
     for d in docs:
         base = os.path.dirname(d.path)
@@ -355,33 +297,18 @@ def validate(root: str) -> list[Finding]:
             if path_part == "":
                 continue
             resolved = os.path.normpath(os.path.join(base, path_part))
+            # Cross-repo links that escape the corpus root (e.g. ../../m-stdlib/... or
+            # ../../CLAUDE.md) point at SIBLING repos. They resolve in a full local
+            # workspace but NOT in a single-repo CI checkout, so they are unverifiable
+            # here — skip them. Cross-repo references SHOULD use GitHub URLs (FRAMEWORK §9.2).
+            if not (resolved == root or resolved.startswith(root + os.sep)):
+                continue
             if not os.path.exists(resolved):
                 findings.append(Finding("error", d.relpath, lineno, "LINK", f"link target not found: '{path_part}'"))
                 continue
-            if anchor and resolved.endswith(".md"):
-                if resolved in headings_by_path:
-                    if anchor not in headings_by_path[resolved]:
-                        findings.append(Finding("error", d.relpath, lineno, "ANCHOR", f"anchor '#{anchor}' not in {os.path.relpath(resolved, root)}"))
-
-    # ---- index coverage (warning) ----
-    index_path = os.path.join(root, "README.md")
-    if os.path.exists(index_path):
-        idx_doc = next((d for d in docs if d.path == index_path), None)
-        linked = set()
-        if idx_doc:
-            for target, _ in idx_doc.links:
-                p = target.partition("#")[0]
-                if p.endswith(".md"):
-                    linked.add(os.path.normpath(os.path.join(root, p)))
-        for d in docs:
-            if d.path == index_path or d.in_historical:
-                continue
-            if d.fm_ok and d.meta.get("status") in ("superseded", "deprecated"):
-                continue
-            if d.path not in linked:
-                findings.append(Finding("warning", d.relpath, None, "INDEX", "active doc not linked from docs/README.md"))
-    else:
-        findings.append(Finding("warning", root, None, "INDEX", "no docs/README.md index found"))
+            if anchor and resolved.endswith(".md") and resolved in headings_by_path:
+                if anchor not in headings_by_path[resolved]:
+                    findings.append(Finding("error", d.relpath, lineno, "ANCHOR", f"anchor '#{anchor}' not in {os.path.relpath(resolved, root)}"))
 
     return findings
 
@@ -390,7 +317,7 @@ def validate(root: str) -> list[Finding]:
 # Entry point
 # --------------------------------------------------------------------------- #
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description="Validate a documentation corpus against the framework.")
+    ap = argparse.ArgumentParser(description="Validate a documentation corpus (slim: link/anchor integrity gate + advisory frontmatter).")
     ap.add_argument("root", help="path to the docs/ directory")
     ap.add_argument("--json", action="store_true", help="emit findings as JSON")
     ap.add_argument("--strict", action="store_true", help="treat warnings as failures")
