@@ -380,11 +380,33 @@ Use a short **alias + section** so the link reads naturally and points precisely
 [R8](iris-tooling-dependency-map.md#6-m-dev-tools-requirements-for-iris)
 ```
 
-- Paths are **relative** to the linking file. Links to `historical/` are fine.
+- **Same-repo links use *relative* paths** (relative to the linking file). Links to
+  `historical/` are fine.
 - A link to a section MUST include the `#anchor`; the validator resolves anchors
   against the target file's headings (GitHub slug rules).
 - An external link (http/https) is not anchor-checked but SHOULD live in the
   **References** section if it is a primary source.
+
+#### Cross-repo links — use a GitHub URL, never a `../../` filesystem path
+
+In a multi-repo project (sibling repos in one workspace), it is tempting to link a doc
+in another repo with a relative path like `../../m-stdlib/docs/foo.md` or `../../CLAUDE.md`.
+**Don't.** Such a path resolves *only* in a full local checkout of every sibling repo; it
+is **broken** in:
+- **CI**, which checks out a single repo (the link target doesn't exist there), and
+- the **GitHub web view** (relative paths can't escape the repo).
+
+**Rule:** a link whose target lives in **another repo** MUST be a **full GitHub URL**:
+
+```
+[m-stdlib S3 design](https://github.com/vista-cloud-dev/m-stdlib/blob/main/docs/plans/m-stdlib-s3-design.md)
+[the org increment protocol](https://github.com/vista-cloud-dev/.github/blob/main/CLAUDE.md)
+```
+
+The validator enforces this *negatively*: it **does not error** on a link that escapes the
+corpus root (it cannot verify a sibling repo it can't see), so a stray `../../` won't fail
+CI — but it also won't be checked, so it silently rots. A GitHub URL renders and resolves
+everywhere. Keep **relative** paths for **intra-repo** links (those *are* validated).
 
 ### 9.3 Section anchors
 
@@ -458,30 +480,51 @@ python3 doc-framework/tools/validate_docs.py docs/ --json     # machine-readable
 python3 doc-framework/tools/validate_docs.py docs/ --strict   # warnings become errors
 ```
 
-It checks (errors unless noted):
+**Slimmed (2026-06-23).** The validator gates on **cross-reference integrity only** —
+the one class of finding that is always a real defect — and treats everything else as
+**advisory**. It is also **dialect-agnostic**: the corpus uses two frontmatter dialects
+(framework `id/type/updated`, proposal `doc_type/last_modified`) and the validator
+enforces neither; it only *notices* the common core. The former ceremony (type/status
+enums, `id`↔filename, the supersession protocol, index coverage, tags) was **removed** —
+the corpus never adopted that dialect, so those checks produced noise, not signal.
 
-- **Frontmatter** present and parseable; all **required fields** present.
-- **`type`** and **`status`** are valid enum values.
-- **`id`** equals the filename stem; **no duplicate `id`s** across the corpus.
-- **Dates** are ISO `YYYY-MM-DD`; **`updated >= created`**.
-- **`tags`** is a flat list (warn if absent).
-- **Supersession integrity**: `supersedes`/`superseded_by` resolve to existing
-  docs and are **bidirectional**; a `superseded`/`deprecated` doc has the partner
-  link; a `superseded` doc declares its replacement.
-- **Link integrity**: every relative `*.md` link resolves to a file; every
-  `#anchor` resolves to a heading in the target (GitHub slug rules).
-- **Index coverage** (warn): every active doc is linked from `docs/README.md`;
-  superseded docs need not be.
-- **Status placement** (warn): `superseded`/`deprecated` docs live under
-  `historical/`.
+It checks:
 
-Exit code is non-zero if any error (or, with `--strict`, any warning) is found.
+- **Link + anchor integrity (ERROR — the gate):** every relative same-repo `*.md` link
+  resolves to a file; every `#anchor` resolves to a heading in the target (GitHub slug
+  rules). **Cross-repo links** (targets escaping the corpus root) are **skipped, not
+  errored** — they're unverifiable in a single-repo CI checkout; use a GitHub URL for
+  those (§9.2).
+- **Basic frontmatter (WARNING — advisory):** frontmatter present + parseable; the
+  common core (`title`/`status`/`created`) present; `created`/`updated`/`last_modified`
+  are ISO `YYYY-MM-DD`. None of these fail the build (the corpus legitimately includes
+  frontmatter-less working notes).
+- Excluded from validation entirely: `prompts/`, `archive/`, `memory/`, `retired/`.
 
-### 11.2 CI
+Exit code is non-zero if any **error** (broken link/anchor) is found — or, with
+`--strict`, on any warning too.
 
-`ci/github-actions-docs.yml` runs the validator on every PR that touches `docs/`.
-Copy it to `.github/workflows/`. The gate keeps the corpus from drifting between
-human reviews — desync becomes a red check, not a latent inconsistency.
+### 11.2 CI — call the reusable workflow (don't vendor by `cp`)
+
+Consumers reference the framework's **reusable workflow** instead of copying the
+validator into each repo (which drifts). In `<repo>/.github/workflows/docs-validate.yml`:
+
+```yaml
+name: docs-validate
+on:
+  push:         { paths: ["**/*.md", ".github/workflows/docs-validate.yml"] }
+  pull_request: { paths: ["**/*.md"] }
+jobs:
+  validate:
+    uses: vista-cloud-dev/doc-framework/.github/workflows/validate.yml@main
+    # with: { corpus_path: docs }   # only if docs live in a subdir
+```
+
+The reusable workflow (`.github/workflows/validate.yml`) checks out the caller corpus and
+this framework separately and runs the slim validator against the corpus — one source of
+truth, no vendored copy to re-sync. (The old `cp ci/github-actions-docs.yml …` /
+`cp tools/validate_docs.py …` vendoring is deprecated; the template in `ci/` remains for
+air-gapped consumers that cannot reference a reusable workflow.)
 
 ---
 
