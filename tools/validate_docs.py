@@ -38,10 +38,12 @@ from typing import Any
 # Directories excluded from the validated corpus (pruned in collect_docs).
 # `prompts/` = session hand-offs (own lightweight convention); `archive/` = retired,
 # read-only material; `memory/` = the auto-memory store (a `name`/`description`/`metadata`
-# dialect, not framework docs); `retired/` = proposals archived in place. None are active
-# framework docs. Inbound links into any of them still resolve (the link checker resolves
-# targets against the filesystem, not this set).
-EXCLUDE_DIRS = {"prompts", "archive", "memory", "retired"}
+# dialect, not framework docs); `retired/` and `historical/` = superseded docs archived
+# in place (§10) — frozen snapshots whose internal links point at since-moved files, so
+# validating them is noise, not signal. None are active framework docs. Inbound links into
+# any of them still resolve (the link checker resolves targets against the filesystem, not
+# this set).
+EXCLUDE_DIRS = {"prompts", "archive", "memory", "retired", "historical"}
 
 # Advisory only — the common core both corpus dialects share.
 REQUIRED_FIELDS = ["title", "status", "created"]
