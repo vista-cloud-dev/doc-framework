@@ -40,10 +40,14 @@ from typing import Any
 # read-only material; `memory/` = the auto-memory store (a `name`/`description`/`metadata`
 # dialect, not framework docs); `retired/` and `historical/` = superseded docs archived
 # in place (§10) — frozen snapshots whose internal links point at since-moved files, so
-# validating them is noise, not signal. None are active framework docs. Inbound links into
-# any of them still resolve (the link checker resolves targets against the filesystem, not
-# this set).
-EXCLUDE_DIRS = {"prompts", "archive", "memory", "retired", "historical"}
+# validating them is noise, not signal. `modules/` = GENERATED per-module reference
+# pages (the stdlib-docs toolchain's machine output: a `module`/`labels`/`errors`
+# frontmatter dialect, regenerated from `.m` source and drift-gated in the generating
+# repo) — governed by that repo's own robust schema, not this prose validator
+# (see docs `background/docs-governance-two-regimes-adr.md`). None are active framework
+# docs. Inbound links into any of them still resolve (the link checker resolves targets
+# against the filesystem, not this set).
+EXCLUDE_DIRS = {"prompts", "archive", "memory", "retired", "historical", "modules"}
 
 # Advisory only — the common core both corpus dialects share.
 REQUIRED_FIELDS = ["title", "status", "created"]

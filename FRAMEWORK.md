@@ -499,7 +499,13 @@ It checks:
   common core (`title`/`status`/`created`) present; `created`/`updated`/`last_modified`
   are ISO `YYYY-MM-DD`. None of these fail the build (the corpus legitimately includes
   frontmatter-less working notes).
-- Excluded from validation entirely: `prompts/`, `archive/`, `memory/`, `retired/`.
+- Excluded from validation entirely: `prompts/`, `archive/`, `memory/`, `retired/`,
+  `historical/`, and **`modules/`**. The last is **generated machine output** — the
+  stdlib-docs toolchain's per-module reference pages, regenerated from `.m` source and
+  governed by the generating repo's own robust schema + drift gates, not this prose
+  validator. (Two-regime governance: this framework owns the *working/internal* docs;
+  generated *published reference* is owned by the generating repo. See the consumer
+  repos' `background/docs-governance-two-regimes-adr.md`.)
 
 Exit code is non-zero if any **error** (broken link/anchor) is found — or, with
 `--strict`, on any warning too.
