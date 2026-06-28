@@ -1,11 +1,11 @@
 # Widget documentation (example corpus)
 
-A minimal, **valid** corpus that demonstrates the framework: a canonical spec, an
-accepted ADR it relies on, and a superseded plan kept in `historical/`. Run the
-validator against this directory to see a clean pass:
+A minimal corpus that demonstrates the conventions: a canonical spec, an ADR it
+relies on, and a superseded plan retired into `historical/`. Run the link checker
+against this directory to see a clean pass:
 
 ```
-python3 ../../tools/validate_docs.py .
+python3 ../../tools/link-check.py .
 ```
 
 ## Specifications (canonical)
@@ -20,8 +20,3 @@ python3 ../../tools/validate_docs.py .
 
 - [`historical/widget-plan.md`](historical/widget-plan.md) — the original plan, superseded by the spec.
 
----
-
-### Status legend
-
-`idea` → `draft` → `proposed` → `accepted`/`canonical`; terminal: `superseded`, `deprecated`.

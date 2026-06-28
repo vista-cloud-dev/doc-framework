@@ -1,6 +1,6 @@
 # Reusable docs-validation workflow.
 #
-# Consumers call this instead of vendoring tools/validate_docs.py by `cp`. One source
+# Consumers call this instead of vendoring tools/link-check.py by `cp`. One source
 # of truth (this repo); callers reference it and never drift. Example caller:
 #
 #   # <consumer-repo>/.github/workflows/docs-validate.yml
@@ -14,7 +14,7 @@
 #       # with: { corpus_path: docs }   # if docs live in a subdir
 #
 # The job checks out the CALLER corpus and this framework separately, then runs the
-# slim validator (link/anchor integrity gate + advisory frontmatter) against the corpus.
+# link/anchor integrity checker against the corpus.
 name: docs-validate (reusable)
 
 on:
@@ -26,15 +26,10 @@ on:
         default: "."
         type: string
       framework_ref:
-        description: "doc-framework ref that provides the validator."
+        description: "doc-framework ref that provides the checker."
         required: false
         default: "main"
         type: string
-      strict:
-        description: "Treat warnings as failures too."
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   validate:
@@ -45,7 +40,7 @@ jobs:
         with:
           path: corpus
 
-      - name: Check out doc-framework (the validator)
+      - name: Check out doc-framework (the checker)
         uses: actions/checkout@v4
         with:
           repository: vista-cloud-dev/doc-framework
@@ -56,8 +51,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate documentation corpus
+      - name: Check documentation links
         run: |
-          python3 .doc-framework/tools/validate_docs.py \
-            "corpus/${{ inputs.corpus_path }}" \
-            ${{ inputs.strict && '--strict' || '' }}
+          python3 .doc-framework/tools/link-check.py \
+            "corpus/${{ inputs.corpus_path }}"

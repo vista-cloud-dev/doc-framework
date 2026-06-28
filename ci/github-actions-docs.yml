@@ -1,8 +1,7 @@
-# Docs corpus validation gate.
+# Docs corpus link/anchor integrity gate.
 # Copy to .github/workflows/docs-validate.yml in your project.
-# Runs the framework validator on every push/PR that touches docs/.
-# Zero dependencies: the validator falls back to a built-in frontmatter parser,
-# so no `pip install` step is required. (PyYAML is used automatically if present.)
+# Runs the link checker on every push/PR that touches docs/.
+# Zero dependencies (pure stdlib) — no `pip install` step is required.
 
 name: docs-validate
 
@@ -27,7 +26,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Errors fail the build; warnings are advisory.
-      # Add --strict to also fail on warnings (e.g. uncovered index entries).
-      - name: Validate documentation corpus
-        run: python3 doc-framework/tools/validate_docs.py docs/
+      # A broken link or anchor fails the build.
+      - name: Check documentation links
+        run: python3 doc-framework/tools/link-check.py docs/

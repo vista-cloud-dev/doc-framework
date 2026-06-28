@@ -1,60 +1,46 @@
 # doc-framework
 
-A portable, project-agnostic **scaffold** for a corpus of technical documents that
-evolves from first ideation to a final, cross-validated specification — and stays
-in sync and machine-reviewable the whole way.
+A tiny, project-agnostic standard for a corpus of markdown docs, plus the one tool
+that keeps it honest: a **link/anchor integrity checker**.
 
-Drop this directory into any new project, grow `docs/` from the templates, and let
-the validator keep the corpus coherent.
+The whole standard is one page — [`CONVENTIONS.md`](CONVENTIONS.md). In short:
+kebab-case filenames, frontmatter optional, **links must resolve**, supersede by
+editing and let git be the changelog.
 
 ## What's here
 
 | Path | What it is |
 |---|---|
-| [`FRAMEWORK.md`](FRAMEWORK.md) | **The standard.** Naming, tagging, structure, semantics, frontmatter, lifecycle, cross-referencing, and Claude best-practices. Read this first. |
-| [`templates/`](templates/) | One copy-and-fill skeleton per document type: `spec`, `adr`, `investigation`, `research`, `plan`, `map`, `guide`, `log`, plus `index.md` for `docs/README.md`. |
-| [`schema/frontmatter.schema.json`](schema/frontmatter.schema.json) | JSON Schema for the frontmatter — wire it into your editor for live validation. |
-| [`tools/validate_docs.py`](tools/validate_docs.py) | Zero-dependency corpus validator (frontmatter, enums, links, anchors, supersession). |
-| [`ci/github-actions-docs.yml`](ci/github-actions-docs.yml) | A CI gate that runs the validator on PRs touching `docs/`. |
-| [`examples/docs/`](examples/docs/) | A minimal valid corpus (spec + ADR + superseded plan) that passes the validator. |
+| [`CONVENTIONS.md`](CONVENTIONS.md) | **The standard**, in one page. Read this first. |
+| [`tools/link-check.py`](tools/link-check.py) | Zero-dependency markdown link + anchor checker — the only gate. |
+| [`.github/workflows/validate.yml`](.github/workflows/validate.yml) | Reusable CI workflow; consumers `uses:` it (don't vendor the script by `cp`). |
+| [`ci/github-actions-docs.yml`](ci/github-actions-docs.yml) | Standalone CI gate, for a repo that prefers to run the script directly. |
+| [`examples/docs/`](examples/docs/) | A minimal corpus that passes the checker. |
 
-## Bootstrap a new project
+## Use it in a project
 
-```sh
-# 1. Copy the scaffold in beside your code.
-cp -R doc-framework/ /path/to/new-project/doc-framework/
+Grow `docs/` as plain kebab-case markdown, then wire the gate. Prefer the reusable
+workflow — one source of truth, no vendored copy to drift:
 
-# 2. Create the docs tree and its index.
-mkdir -p /path/to/new-project/docs
-cp doc-framework/templates/index.md /path/to/new-project/docs/README.md
-
-# 3. Wire the CI gate.
-mkdir -p /path/to/new-project/.github/workflows
-cp doc-framework/ci/github-actions-docs.yml /path/to/new-project/.github/workflows/docs-validate.yml
+```yaml
+# <your-repo>/.github/workflows/docs-validate.yml
+name: docs-validate
+on:
+  push:        { paths: ["docs/**", ".github/workflows/docs-validate.yml"] }
+  pull_request: { paths: ["docs/**"] }
+jobs:
+  validate:
+    uses: vista-cloud-dev/doc-framework/.github/workflows/validate.yml@main
+    with: { corpus_path: docs }   # omit to validate the whole repo
 ```
 
-## Add a document
-
-1. Pick the type ([taxonomy](FRAMEWORK.md#4-document-taxonomy)) and copy
-   `templates/<type>.md` to `docs/<topic>-<type>.md`.
-2. Fill the frontmatter: set `id` = the filename stem, dates = today.
-3. Write the body from the type's section spine.
-4. Validate:
+## Run the checker locally
 
 ```sh
-python3 doc-framework/tools/validate_docs.py docs/
+python3 tools/link-check.py docs/
+python3 tools/link-check.py examples/docs/
+# → 0 error(s) across the corpus.  corpus is clean.
 ```
 
-## The lifecycle in one line
-
-`plan` (ideate) → `research` / `investigation` (explore) → `adr` (decide) →
-**`spec`** (consolidate into the canonical contract) → `guide` / `map` / `log`
-(use, relate, remember). Supersede, never fork; one canonical doc per fact.
-See [FRAMEWORK.md §3](FRAMEWORK.md#3-the-document-lifecycle).
-
-## Try the validator now
-
-```sh
-python3 tools/validate_docs.py examples/docs/
-# → 0 error(s), 0 warning(s) across the corpus.  corpus is clean.
-```
+Exit `0` when every link/anchor resolves, `1` if any are broken, `2` on bad
+invocation. Pure stdlib — no `pip install`, airgapped-friendly.
