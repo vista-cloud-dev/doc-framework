@@ -40,7 +40,8 @@ stdlib repos only) · `design/` (this repo's design notes) · `memory/` (auto-me
 · `archive/` (retired docs, `git mv`'d). Live-work trackers sit in `docs/` root as
 `<effort>-tracker.md` and move to `archive/` when the effort lands. Don't invent
 bespoke folders. Full rationale: the org docs repo's
-`proposals/docs-organization-remediation-plan.md`.
+`archive/docs-organization-remediation-plan.md` (the remediation effort that set
+this standard; archived 2026-06-28 on completion).
 
 ---
 
