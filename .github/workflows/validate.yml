@@ -36,18 +36,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the caller corpus
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: corpus
 
       - name: Check out doc-framework (the checker)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: vista-cloud-dev/doc-framework
           ref: ${{ inputs.framework_ref }}
           path: .doc-framework
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
