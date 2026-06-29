@@ -36,12 +36,32 @@ them still resolve.
 ## Folder layout (vista-cloud-dev house standard)
 
 `README.md` (the one index) · `guides/` (how-to) · `modules/` (generated reference,
-stdlib repos only) · `design/` (this repo's design notes) · `memory/` (auto-memory)
+stdlib repos only) · `design/` (this repo's stable design notes & analyses) ·
+`proposals/` (live, in-progress proposals — see below) · `memory/` (auto-memory)
 · `archive/` (retired docs, `git mv`'d). Live-work trackers sit in `docs/` root as
 `<effort>-tracker.md` and move to `archive/` when the effort lands. Don't invent
-bespoke folders. Full rationale: the org docs repo's
-`archive/docs-organization-remediation-plan.md` (the remediation effort that set
-this standard; archived 2026-06-28 on completion).
+*other* bespoke folders (`tracking/`, `plans/`, `historical/`, …). Full rationale:
+the org docs repo's `archive/docs-organization-remediation-plan.md` (the
+remediation effort that set this standard; archived 2026-06-28 on completion).
+
+### `proposals/` — the proposal-driven loop
+
+Writing a proposal before building anything non-trivial is the house workflow, so
+proposals are first-class, not "design notes." A proposal is decision-seeking and
+has a lifecycle (`draft → accepted → superseded`); it lives in `proposals/` while
+in-flight. Use `design/` instead for *stable* design notes and analyses that aren't
+seeking a decision.
+
+- **Prompts ride with their proposal.** Kickoff / orchestration prompts that drive
+  an effort live with it in a per-effort subfolder — `proposals/<effort>/`
+  (the proposal `.md` plus a `prompts/` beside it) — never a standing top-level
+  `docs/prompts/` folder (that was the original rot source). They are working
+  scaffolding, kept only while the effort is live.
+- **Archive the whole unit on landing.** When the effort lands, `git mv` the
+  proposal *and* its prompts together into `archive/` as one unit. A finalized
+  proposal is history; the live tree shows only in-flight work.
+- **Cross-repo proposals** (spanning the SDK + drivers, the waterline, org policy)
+  live in the central `docs` repo's `proposals/`, not per-repo.
 
 ---
 
