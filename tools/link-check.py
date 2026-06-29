@@ -30,12 +30,12 @@ import sys
 from dataclasses import dataclass, field
 
 # Directories excluded from the scanned corpus. `prompts/` = session hand-offs;
-# `archive/`, `retired/`, `historical/` = frozen, retired material whose internal
-# links point at since-moved files; `memory/` = the auto-memory store; `modules/` =
-# GENERATED reference pages drift-gated in their generating repo. None are active
-# corpus docs. Inbound links INTO any of them still resolve — the checker resolves
-# targets against the filesystem, not this set.
-EXCLUDE_DIRS = {"prompts", "archive", "memory", "retired", "historical", "modules"}
+# `archive/`, `retired/`, `historical/`, `quarantine/` = frozen, parked/retired
+# material whose internal links point at since-moved files; `memory/` = the
+# auto-memory store; `modules/` = GENERATED reference pages drift-gated in their
+# generating repo. None are active corpus docs. Inbound links INTO any of them
+# still resolve — the checker resolves targets against the filesystem, not this set.
+EXCLUDE_DIRS = {"prompts", "archive", "memory", "retired", "historical", "modules", "quarantine"}
 
 # markdown links: [text](target)  — not images (![...]); target may carry a "title"
 LINK_RE = re.compile(r"(?<!!)\[(?:[^\]]*)\]\(([^)]+)\)")
